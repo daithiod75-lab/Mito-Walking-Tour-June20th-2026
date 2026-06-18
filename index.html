@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mito Discovery: Interactive Youth Walking Guide & Budget Planner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for beautiful icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & Noto Sans JP -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        /* Custom scrollbar for beautiful dashboard experience */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .route-active {
+            stroke-dasharray: 8;
+            animation: dash 30s linear infinite;
+        }
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+        .custom-marker-pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(139, 92, 246, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-full flex flex-col overflow-hidden">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-600 text-white shadow-md z-30 px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
+                <i class="fa-solid fa-map-location-dot text-2xl text-yellow-300"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
+                    Mito Discovery Tour <span class="text-xs bg-yellow-400 text-slate-900 px-2 py-0.5 rounded-full font-semibold">10 AM - 3 PM</span>
+                </h1>
+                <p class="text-xs text-indigo-100 hidden sm:block">Interactive Walking Guide & Budget Planner for Students</p>
+            </div>
+        </div>
+
+        <!-- Controls (Language Toggle & Settings) -->
+        <div class="flex items-center space-x-3">
+            <!-- Language Switcher -->
+            <button id="lang-toggle" onclick="toggleLanguage()" class="bg-white/15 hover:bg-white/25 border border-white/30 text-white font-semibold px-3 py-1.5 rounded-xl transition duration-300 flex items-center gap-1 text-sm">
+                <i class="fa-solid fa-language text-lg text-yellow-300"></i>
+                <span id="lang-label">日本語</span>
+            </button>
+            
+            <!-- Quick Help -->
+            <button onclick="openHelpModal()" class="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition text-white">
+                <i class="fa-solid fa-circle-question text-lg"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Split-Screen -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        
+        <!-- Left Side: Interactive Sidebar Panel (Scrollable Details) -->
+        <section class="w-full md:w-[480px] lg:w-[530px] bg-white border-r border-slate-200 flex flex-col flex-shrink-0 overflow-y-auto z-10">
+            
+            <!-- Hero Dashboard Header inside sidebar -->
+            <div class="p-5 bg-gradient-to-b from-indigo-50/50 to-white border-b border-slate-100">
+                <div class="flex items-center justify-between mb-3">
+                    <span id="welcome-badge" class="bg-indigo-100 text-indigo-800 text-xs px-2.5 py-1 rounded-full font-semibold uppercase tracking-wider">
+                        🎓 Student Walking Itinerary
+                    </span>
+                    <span class="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                        <i class="fa-solid fa-shoe-prints text-indigo-500"></i> Approx. 6.6 km
+                    </span>
+                </div>
+                
+                <h2 id="main-title" class="text-2xl font-extrabold text-slate-900 tracking-tight leading-snug">
+                    Explore Mito City Centre
+                </h2>
+                <p id="main-subtitle" class="text-slate-600 text-sm mt-1 leading-relaxed">
+                    A vibrant self-guided walking course packed with deep samurai history, gorgeous parks, vegetarian eating guide, and shopping spots.
+                </p>
+
+                <!-- Interactive Settings Box: Customize Walk Speed -->
+                <div class="mt-4 p-4 bg-white rounded-2xl border border-indigo-100 shadow-sm">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <i class="fa-solid fa-person-walking text-indigo-500"></i>
+                            <span data-localize="pace_label">Set Walking Pace:</span>
+                        </label>
+                        <span id="pace-display" class="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold">Normal (4.5 km/h)</span>
+                    </div>
+                    <input type="range" id="pace-slider" min="3" max="6" step="0.5" value="4.5" oninput="updateWalkingPace(this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                    
+                    <!-- Dynamic ETA Notification -->
+                    <div class="mt-3 flex items-start gap-2.5 bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                        <i class="fa-solid fa-clock-rotate-left text-yellow-600 mt-0.5 text-sm"></i>
+                        <div class="text-xs text-yellow-800 leading-normal">
+                            <strong data-localize="target_heading">Strict Target: Back by 3:00 PM!</strong>
+                            <p id="eta-summary" class="mt-0.5">At standard pace, complete tour time fits snugly within 5 hours including sightseeing and lunch!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs to toggle content views -->
+            <div class="flex border-b border-slate-200 sticky top-0 bg-white z-20 overflow-x-auto">
+                <button onclick="switchTab('itinerary')" id="tab-itinerary" class="flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-indigo-600 text-indigo-600 transition">
+                    <i class="fa-solid fa-route mr-1"></i> <span data-localize="tab_route">Route Stops</span>
+                </button>
+                <button onclick="switchTab('veggie')" id="tab-veggie" class="flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition">
+                    <i class="fa-solid fa-leaf mr-1 text-green-500"></i> <span data-localize="tab_veg">Veg Eateries</span>
+                </button>
+                <button onclick="switchTab('shopping')" id="tab-shopping" class="flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition">
+                    <i class="fa-solid fa-bag-shopping mr-1 text-pink-500"></i> <span data-localize="tab_shop">Mito Shopping</span>
+                </button>
+                <button onclick="switchTab('budget')" id="tab-budget" class="flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition">
+                    <i class="fa-solid fa-calculator mr-1 text-orange-500"></i> <span data-localize="tab_budget">Budget Tool</span>
+                </button>
+            </div>
+
+            <!-- Tab Contents Container -->
+            <div id="tab-content" class="p-4 flex-1">
+                
+                <!-- 1. ITINERARY TAB -->
+                <div id="content-itinerary" class="space-y-6">
+                    <div class="relative border-l-2 border-dashed border-indigo-200 ml-4 pl-6 space-y-8 my-3">
+                        
+                        <!-- STOP 0: Mito Station Start -->
+                        <div class="relative cursor-pointer group" onclick="focusStop(0)">
+                            <div class="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white ring-4 ring-indigo-100 group-hover:scale-125 transition"></div>
+                            <div class="bg-slate-50 hover:bg-indigo-50/50 p-4 rounded-2xl border border-slate-100 transition shadow-sm hover:shadow">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-indigo-600 tracking-wider">10:00 AM</span>
+                                    <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold">Start</span>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900 mt-1 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-train text-indigo-500"></i>
+                                    <span data-localize="s0_name">Mito Station (North Exit)</span>
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1" data-localize="s0_desc">Gather here at 10:00 AM near the bronze statue of Mito Komon.</p>
+                                
+                                <!-- Indian Cultural Connection -->
+                                <div class="mt-2.5 p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/50 text-[11px] text-amber-900">
+                                    <strong class="font-bold flex items-center gap-1 text-amber-800">
+                                        <i class="fa-solid fa-circle-nodes"></i> <span data-localize="in_connect_lbl">India Connection:</span>
+                                    </strong>
+                                    <p class="mt-1" data-localize="s0_india">Like a highly synchronized railway junction in India (such as <strong>New Delhi Station or Mumbai CSMT</strong>) but completely modernized and seamlessly integrated with cultural landmarks right outside the gates.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STOP 1: Kodokan -->
+                        <div class="relative cursor-pointer group" onclick="focusStop(1)">
+                            <div class="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white ring-4 ring-indigo-100 group-hover:scale-125 transition"></div>
+                            <div class="bg-slate-50 hover:bg-indigo-50/50 p-4 rounded-2xl border border-slate-100 transition shadow-sm hover:shadow" id="card-kodokan">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-indigo-600 tracking-wider">10:10 AM - 10:55 AM</span>
+                                    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">45 Min Visit</span>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900 mt-1 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-landmark text-amber-600"></i>
+                                    <span data-localize="s1_name">Kodokan Han School</span>
+                                </h3>
+                                <div class="text-xs text-slate-600 mt-2 space-y-1.5">
+                                    <div class="flex items-center gap-1.5 font-semibold text-slate-700">
+                                        <i class="fa-solid fa-person-walking text-slate-400"></i>
+                                        <span id="dist-s0-s1">~600m (Walk: ~8-10 mins)</span>
+                                    </div>
+                                    <p class="leading-relaxed" data-localize="s1_desc">
+                                        The largest samurai academy of the Edo period, established by Tokugawa Nariaki in 1841. Students mastered medicine, mathematics, martial arts, and Confucian philosophy.
+                                    </p>
+                                    
+                                    <!-- Indian Cultural Connection -->
+                                    <div class="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/50 text-[11px] text-amber-900">
+                                        <strong class="font-bold flex items-center gap-1 text-amber-800">
+                                            <i class="fa-solid fa-building-columns"></i> <span data-localize="in_connect_lbl">India Connection:</span>
+                                        </strong>
+                                        <p class="mt-1" data-localize="s1_india">Historically mirrors ancient Indian higher learning academies like <strong>Nalanda or Takshashila Gurukuls</strong>, where students resided under rigorous, holistic martial and philosophical guidance.</p>
+                                    </div>
+
+                                    <div class="bg-indigo-50 text-indigo-950 p-2.5 rounded-xl border border-indigo-100/50 mt-2">
+                                        <span class="font-bold text-[11px] uppercase tracking-wide text-indigo-800 block">💡 Youth Tip:</span>
+                                        <p class="text-[11px] leading-relaxed" data-localize="s1_tip">Awesome backdrop for photos! Spot the old gate bullet holes from the 1868 Battle of Mito, showing real samurai military drama.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STOP 2: Keisei Department Store -->
+                        <div class="relative cursor-pointer group" onclick="focusStop(2)">
+                            <div class="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white ring-4 ring-indigo-100 group-hover:scale-125 transition"></div>
+                            <div class="bg-slate-50 hover:bg-indigo-50/50 p-4 rounded-2xl border border-slate-100 transition shadow-sm hover:shadow" id="card-keisei">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-indigo-600 tracking-wider">11:15 AM - 12:45 PM</span>
+                                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold">90 Min (Lunch + Shop)</span>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900 mt-1 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-store text-pink-500"></i>
+                                    <span data-localize="s2_name">Mito Keisei Department Store</span>
+                                </h3>
+                                <div class="text-xs text-slate-600 mt-2 space-y-2">
+                                    <div class="flex items-center gap-1.5 font-semibold text-slate-700">
+                                        <i class="fa-solid fa-person-walking text-slate-400"></i>
+                                        <span id="dist-s1-s2">~1.5 km (Walk: ~20 mins)</span>
+                                    </div>
+                                    
+                                    <div class="bg-purple-50 text-purple-950 p-2.5 rounded-xl border border-purple-100/50">
+                                        <strong class="font-bold text-[11px] text-purple-800 block">🇮🇳 Cool For Indian Students:</strong>
+                                        <p class="text-[11px] leading-relaxed mt-0.5" data-localize="s2_for_indian">
+                                            Pass through historic old Mito Castle ruins! Look at the juxtaposition of ancient black gates against the ultra-sleek Keisei Tower architecture. Great to analyze Japanese city design.
+                                        </p>
+                                    </div>
+
+                                    <p class="leading-relaxed" data-localize="s2_desc">
+                                        Mito's premier modern luxury high-rise shopping hub. Perfect to enjoy air-conditioned window shopping, find top makeup, try modern cafes, and feast on the dining floor.
+                                    </p>
+
+                                    <!-- Indian Cultural Connection -->
+                                    <div class="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/50 text-[11px] text-amber-900">
+                                        <strong class="font-bold flex items-center gap-1 text-amber-800">
+                                            <i class="fa-solid fa-basket-shopping"></i> <span data-localize="in_connect_lbl">India Connection:</span>
+                                        </strong>
+                                        <p class="mt-1" data-localize="s2_india">Relates directly to India's high-end lifestyle complexes like <strong>Select Citywalk in Delhi or Phoenix Palladium in Mumbai</strong>. A fun twist: the 'Depachika' (basement food hall) has the hustle and sweet scents of a boutique Indian sweet bazar!</p>
+                                    </div>
+                                    
+                                    <div class="flex items-center gap-2 mt-2">
+                                        <button onclick="switchTab('veggie'); event.stopPropagation();" class="text-[11px] bg-green-100 hover:bg-green-200 text-green-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1">
+                                            <i class="fa-solid fa-leaf"></i> View Near Veg Eateries
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STOP 3: Kairakuen Park -->
+                        <div class="relative cursor-pointer group" onclick="focusStop(3)">
+                            <div class="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white ring-4 ring-indigo-100 group-hover:scale-125 transition"></div>
+                            <div class="bg-slate-50 hover:bg-indigo-50/50 p-4 rounded-2xl border border-slate-100 transition shadow-sm hover:shadow" id="card-kairakuen">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-indigo-600 tracking-wider">1:05 PM - 1:55 PM</span>
+                                    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">50 Min Visit</span>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900 mt-1 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-tree text-emerald-600"></i>
+                                    <span data-localize="s3_name">Kairakuen Garden</span>
+                                </h3>
+                                <div class="text-xs text-slate-600 mt-2 space-y-2">
+                                    <div class="flex items-center gap-1.5 font-semibold text-slate-700">
+                                        <i class="fa-solid fa-person-walking text-slate-400"></i>
+                                        <span id="dist-s2-s3">~1.5 km (Walk: ~20 mins)</span>
+                                    </div>
+                                    <p class="leading-relaxed" data-localize="s3_desc">
+                                        Ranked as one of the "Three Great Gardens of Japan" (Nihon Sanmeien). Opened in 1841. Features over 3,000 plum blossom trees, deep bamboo forests, and the three-story Kobuntei building with historical tea chambers.
+                                    </p>
+
+                                    <!-- Indian Cultural Connection -->
+                                    <div class="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/50 text-[11px] text-amber-900">
+                                        <strong class="font-bold flex items-center gap-1 text-amber-800">
+                                            <i class="fa-solid fa-tree-city"></i> <span data-localize="in_connect_lbl">India Connection:</span>
+                                        </strong>
+                                        <p class="mt-1" data-localize="s3_india">Compares to India's celebrated imperial royal landscapes, such as the <strong>Shalimar Bagh (Mughal Gardens) of Srinagar or Brindavan Gardens in Mysore</strong>, emphasizing symmetry, flowing water, and massive seasonal floral celebrations.</p>
+                                    </div>
+
+                                    <div class="bg-emerald-50 text-emerald-950 p-2.5 rounded-xl border border-emerald-100/50">
+                                        <span class="font-bold text-[11px] uppercase tracking-wide text-emerald-800 block">💡 Culture Connection:</span>
+                                        <p class="text-[11px] leading-relaxed" data-localize="s3_tip">Tokugawa Nariaki designed this specifically as a public park so everyone, from nobles to everyday citizens, could enjoy relaxation—similar to public park ethics globally!</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STOP 4: Senba Lake -->
+                        <div class="relative cursor-pointer group" onclick="focusStop(4)">
+                            <div class="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white ring-4 ring-indigo-100 group-hover:scale-125 transition"></div>
+                            <div class="bg-slate-50 hover:bg-indigo-50/50 p-4 rounded-2xl border border-slate-100 transition shadow-sm hover:shadow" id="card-senba">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-indigo-600 tracking-wider">2:10 PM - 2:35 PM</span>
+                                    <span class="text-xs bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-bold">25 Min Fun</span>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900 mt-1 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-water text-sky-500"></i>
+                                    <span data-localize="s4_name">Lake Senba & Park</span>
+                                </h3>
+                                <div class="text-xs text-slate-600 mt-2 space-y-2">
+                                    <div class="flex items-center gap-1.5 font-semibold text-slate-700">
+                                        <i class="fa-solid fa-person-walking text-slate-400"></i>
+                                        <span id="dist-s3-s4">~1.2 km (Walk: ~15 mins)</span>
+                                    </div>
+                                    <p class="leading-relaxed" data-localize="s4_desc">
+                                        A gorgeous calabash-shaped lake known as the oasis of Mito. Brimming with swans, ducks, and running paths.
+                                    </p>
+
+                                    <!-- Indian Cultural Connection -->
+                                    <div class="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/50 text-[11px] text-amber-900">
+                                        <strong class="font-bold flex items-center gap-1 text-amber-800">
+                                            <i class="fa-solid fa-ship"></i> <span data-localize="in_connect_lbl">India Connection:</span>
+                                        </strong>
+                                        <p class="mt-1" data-localize="s4_india">Evokes the youthful energy and outdoor spirit of <strong>Sukhna Lake in Chandigarh or Kankaria Lake in Ahmedabad</strong>, where families and student groups gather for pedal boat rides, crisp lakeside walks, and street food snacks.</p>
+                                    </div>
+
+                                    <div class="bg-sky-50 text-sky-950 p-2.5 rounded-xl border border-sky-100/50">
+                                        <span class="font-bold text-[11px] text-sky-800 block">⚡ Fun Activities for Students & Pricing:</span>
+                                        <ul class="list-disc pl-4 mt-1 space-y-1 text-[11px]">
+                                            <li><strong data-localize="act_swan">Swan Pedal Boats:</strong> <span data-localize="price_swan">¥1,500 (30 mins, fits up to 3 people - only ¥500 each!)</span></li>
+                                            <li><strong data-localize="act_row">Hand-Rowed Boats:</strong> <span data-localize="price_row">¥700 (30 mins, fits 2 people - only ¥350 each!)</span></li>
+                                            <li><strong data-localize="act_bike">Lakeside Cruiser Bicycle Rent:</strong> <span data-localize="price_bike">¥500 per person</span></li>
+                                            <li><strong data-localize="act_feed">Feed Swans & Giant Koi:</strong> <span data-localize="price_feed">¥100 per bag of food feed</span></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STOP 5: Return to Station -->
+                        <div class="relative cursor-pointer group" onclick="focusStop(5)">
+                            <div class="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-emerald-600 border-4 border-white ring-4 ring-emerald-100 group-hover:scale-125 transition"></div>
+                            <div class="bg-slate-50 hover:bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 transition shadow-sm hover:shadow" id="card-return">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-emerald-600 tracking-wider">2:58 PM</span>
+                                    <span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">Safely Back!</span>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900 mt-1 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-circle-check text-emerald-600"></i>
+                                    <span data-localize="s5_name">Return: Mito Station</span>
+                                </h3>
+                                <div class="text-xs text-slate-600 mt-2 space-y-1.5">
+                                    <div class="flex items-center gap-1.5 font-semibold text-slate-700">
+                                        <i class="fa-solid fa-person-walking text-slate-400"></i>
+                                        <span id="dist-s4-s5">~1.8 km (Walk: ~22 mins)</span>
+                                    </div>
+                                    <p data-localize="s5_desc">Arrive safely at the North/South entrance, completing the walking loop with perfect time left for post-3:00 PM shopping!</p>
+
+                                    <!-- Indian Cultural Connection -->
+                                    <div class="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/50 text-[11px] text-amber-900">
+                                        <strong class="font-bold flex items-center gap-1 text-amber-800">
+                                            <i class="fa-solid fa-seedling"></i> <span data-localize="in_connect_lbl">India Connection:</span>
+                                        </strong>
+                                        <p class="mt-1" data-localize="s5_india">Before catching trains, don't miss trying Mito's legendary Fermented Soybeans (Natto). Texturally, it bears an incredible cooking resemblance to regional Northeast Indian delicacies like **Akhuni of Nagaland or Hawaijar of Manipur**!</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- 2. VEGETARIAN FRIENDLY EATERIES TAB -->
+                <div id="content-veggie" class="hidden space-y-4">
+                    <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs text-emerald-800 leading-normal flex items-start gap-2">
+                        <i class="fa-solid fa-circle-info text-emerald-600 mt-0.5"></i>
+                        <p data-localize="veg_intro">Here are great dining and coffee picks located close to <strong>Keisei Department Store</strong> that cater excellently to vegetarian preferences with custom options.</p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <!-- Eatery 1 -->
+                        <div class="border border-slate-200 rounded-xl p-4 hover:border-green-400 transition cursor-pointer bg-white" onclick="highlightFoodMarker(36.3745, 140.4600, 'Taj Mahal Indian Restaurant')">
+                            <div class="flex justify-between items-start">
+                                <span class="bg-green-100 text-green-800 text-[10px] px-2 py-0.5 rounded-full font-bold">100% Pure Indian Veg Available</span>
+                                <span class="text-xs text-slate-400"><i class="fa-solid fa-location-dot"></i> 2 min walk</span>
+                            </div>
+                            <h4 class="font-bold text-slate-900 mt-1 flex items-center gap-1">
+                                <i class="fa-solid fa-utensils text-amber-500"></i> Taj Mahal Mito (インド料理 タージマハル)
+                            </h4>
+                            <p class="text-xs text-slate-600 mt-1" data-localize="veg1_desc">A beloved, authentic Indian restaurant with English speaking staff. Highly reliable vegetarian curries (Chana Masala, Dal Fry, Mix Veg) and hot buttery naans. Standard spices feel just like home.</p>
+                            <div class="mt-2 text-[10px] text-green-700 bg-green-50 px-2 py-1 rounded border border-green-100 font-medium">
+                                <i class="fa-solid fa-circle-check"></i> <span data-localize="veg1_tip">Tip: Customize spice levels up to 5! Onion/Garlic-free options can be requested.</span>
+                            </div>
+                        </div>
+
+                        <!-- Eatery 2 -->
+                        <div class="border border-slate-200 rounded-xl p-4 hover:border-green-400 transition cursor-pointer bg-white" onclick="highlightFoodMarker(36.3741, 140.4608, 'Saza Coffee Keisei Branch')">
+                            <div class="flex justify-between items-start">
+                                <span class="bg-indigo-100 text-indigo-800 text-[10px] px-2 py-0.5 rounded-full font-bold">Premium Local Coffee</span>
+                                <span class="text-xs text-slate-400"><i class="fa-solid fa-location-dot"></i> Inside Keisei</span>
+                            </div>
+                            <h4 class="font-bold text-slate-900 mt-1 flex items-center gap-1">
+                                <i class="fa-solid fa-mug-hot text-brown-600"></i> Saza Coffee (サザコーヒー 水戸京成店)
+                            </h4>
+                            <p class="text-xs text-slate-600 mt-1" data-localize="veg2_desc">The absolute legendary pride of Ibaraki's modern specialty coffee culture. Offers delicious rich matchas, oat milk replacements, and phenomenal sweet potato desserts which are naturally vegetarian!</p>
+                            <div class="mt-2 text-[10px] text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-200 font-medium">
+                                <i class="fa-solid fa-cookie"></i> <span data-localize="veg2_tip">Menu Highlights: Castella sponge cakes, Ibaraki Sweet Potato Shake.</span>
+                            </div>
+                        </div>
+
+                        <!-- Eatery 3 -->
+                        <div class="border border-slate-200 rounded-xl p-4 hover:border-green-400 transition cursor-pointer bg-white" onclick="highlightFoodMarker(36.3735, 140.4615, 'Organic Cafe Yosou')">
+                            <div class="flex justify-between items-start">
+                                <span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">Macrobiotic & Plant-Based</span>
+                                <span class="text-xs text-slate-400"><i class="fa-solid fa-location-dot"></i> 5 min walk</span>
+                            </div>
+                            <h4 class="font-bold text-slate-900 mt-1 flex items-center gap-1">
+                                <i class="fa-solid fa-leaf text-emerald-500"></i> Organic Cafe Yosou (オーガニックカフェ ヨソウ)
+                            </h4>
+                            <p class="text-xs text-slate-600 mt-1" data-localize="veg3_desc">Focuses on pesticide-free locally grown Ibaraki farm vegetables. They make gorgeous colorful lunch plates featuring local root crops, pesticide-free rice, and plant-derived miso soup.</p>
+                            <div class="mt-2 text-[10px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 font-medium">
+                                <i class="fa-solid fa-heart"></i> <span data-localize="veg3_tip">Vegan-friendly, no fish dashi options available upon request.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. MITO STATION SHOPPING TAB (3PM - 6PM) -->
+                <div id="content-shopping" class="hidden space-y-4">
+                    <div class="p-3 bg-pink-50 rounded-xl border border-pink-100 text-xs text-pink-800 leading-normal flex items-start gap-2">
+                        <i class="fa-solid fa-bag-shopping text-pink-600 mt-0.5"></i>
+                        <p data-localize="shop_intro">You have a giant <strong>3-hour window</strong> (3:00 PM to 6:00 PM) inside and directly connected to Mito Station! Here's the best strategy to maximize shopping and snacks.</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <!-- Excel & Excel Minami -->
+                        <div class="bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl p-4 border border-pink-100">
+                            <h4 class="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
+                                <i class="fa-solid fa-building text-pink-500"></i> Excel & Excel Minami (エクセル水戸)
+                            </h4>
+                            <p class="text-xs text-slate-600 mt-1 leading-relaxed" data-localize="shop_excel_desc">
+                                Massive modern multi-story shopping complexes built directly into the station. Perfect for youth fashion, cosmetics, stationery, and traditional souvenir stores.
+                            </p>
+                            
+                            <div class="mt-3 space-y-2">
+                                <div class="bg-white/80 p-2.5 rounded-xl text-xs border border-pink-200">
+                                    <span class="font-bold text-pink-700 text-[11px] block"><i class="fa-solid fa-gifts"></i> Native Souvenir Hunt:</span>
+                                    <p class="text-[11px] text-slate-600 mt-0.5" data-localize="shop_excel_gift">
+                                        Head to 3F Excel Minami's food floors! Grab standard/creative <strong>Natto (fermented soybean) snacks</strong>, plum jelly, or Mito-themed sweet bean cakes.
+                                    </p>
+                                </div>
+                                <div class="bg-white/80 p-2.5 rounded-xl text-xs border border-pink-200">
+                                    <span class="font-bold text-pink-700 text-[11px] block"><i class="fa-solid fa-shirt"></i> Fast Fashion & Pop Culture:</span>
+                                    <p class="text-[11px] text-slate-600 mt-0.5" data-localize="shop_excel_youth">
+                                        Check out popular stores like <strong>GU, MUJI, and Shimamura</strong>. Also excellent bookshops & fancy sticker-making purikura photo booths!
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PLUM / UME Souvenirs Guide -->
+                        <div class="border border-slate-200 rounded-2xl p-4 bg-white">
+                            <h4 class="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
+                                <i class="fa-solid fa-lemon text-yellow-500"></i> <span data-localize="shop_ume_title">Plum / Ume Theme Specialties</span>
+                            </h4>
+                            <p class="text-xs text-slate-600 mt-1" data-localize="shop_ume_desc">Mito is famous for premium plum cultivation. Pick up non-alcoholic sweet plum juices, tangy umeboshi snack chips, and incredible plum-scented bath goods.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. BUDGET SIMULATOR TAB (NEW FEATURE!) -->
+                <div id="content-budget" class="hidden space-y-4">
+                    <div class="p-4 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl text-white shadow-md">
+                        <h3 class="font-black text-base flex items-center gap-2">
+                            <i class="fa-solid fa-wallet"></i>
+                            <span data-localize="bud_head">Mito Student Budget Simulator</span>
+                        </h3>
+                        <p class="text-xs text-orange-50 mt-1" data-localize="bud_intro">
+                            Plan your trip expenses live! Select your age group, adjust the numbers, and pick customizable items. Prices auto-convert between JPY and INR.
+                        </p>
+                    </div>
+
+                    <!-- Budget Parameters Setting Grid -->
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                <i class="fa-solid fa-users text-indigo-500"></i>
+                                <span data-localize="bud_grp_size">Students in Group:</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <button onclick="adjustGroupSize(-1)" class="w-7 h-7 bg-white hover:bg-slate-100 text-slate-800 font-bold border border-slate-300 rounded-lg flex items-center justify-center text-sm transition">-</button>
+                                <span id="group-size-display" class="w-8 text-center text-xs font-extrabold text-indigo-600">3</span>
+                                <button onclick="adjustGroupSize(1)" class="w-7 h-7 bg-white hover:bg-slate-100 text-slate-800 font-bold border border-slate-300 rounded-lg flex items-center justify-center text-sm transition">+</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                <i class="fa-solid fa-graduation-cap text-indigo-500"></i>
+                                <span data-localize="bud_status">Ticket Category:</span>
+                            </label>
+                            <div class="flex bg-white rounded-lg border border-slate-300 p-0.5">
+                                <button id="btn-status-student" onclick="setAgeStatus('student')" class="text-[11px] font-bold px-2.5 py-1 rounded bg-indigo-600 text-white transition">
+                                    <span data-localize="status_student">Student Rate</span>
+                                </button>
+                                <button id="btn-status-adult" onclick="setAgeStatus('adult')" class="text-[11px] font-bold px-2.5 py-1 rounded text-slate-600 transition">
+                                    <span data-localize="status_adult">Adult Rate</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Checklist of Activities -->
+                    <div class="space-y-2.5">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider" data-localize="bud_activities_title">Select Activities & Food:</h4>
+                        
+                        <!-- Item 1: Kodokan Ticket -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-kodokan" checked onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_kod_lbl">Kodokan Entrance Ticket</span>
+                                    <span id="price-lbl-kodokan">¥200</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_kod_desc">Edo Han school heritage tour. High discount for youth students.</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 2: Kairakuen Garden Ticket -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-kairakuen" checked onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_kai_lbl">Kairakuen Garden Entrance</span>
+                                    <span id="price-lbl-kairakuen">¥150</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_kai_desc">Legendary landscape. Garden gate pass.</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 3: Kobuntei Villa Ticket -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-kobuntei" onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_kob_lbl">Kobuntei Historical Pavilion</span>
+                                    <span id="price-lbl-kobuntei">¥100</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_kob_desc">Inside Kairakuen. Three stories of exquisite samurai sliding-door art.</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 4: Swan Pedal Boat -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-swanboat" checked onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_swan_lbl">Swan Pedal Boat (30-min rental)</span>
+                                    <span class="text-amber-600"><span id="price-lbl-swanboat">¥500</span>/person</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_swan_desc">¥1,500 total per boat. Price divided automatically by group size!</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 5: Lakeside Cycle Cruiser -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-bicycle" onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_bike_lbl">Lakeside Cruiser Bicycle Rent</span>
+                                    <span>¥500</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_bike_desc">Fun fast way to circle the full perimeter of gorgeous Lake Senba.</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 6: Swan/Bird Feed -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-feed" checked onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_feed_lbl">Swan & Duck Food Feed</span>
+                                    <span>¥100</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_feed_desc">Small pellet feed bag. Highly popular for photos feeding large white swans.</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 7: Authentic Indian Veg Curry Feast -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-lunch" checked onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_lunch_lbl">Taj Mahal Veg Curry Meal</span>
+                                    <span>¥1,200</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_lunch_desc">Authentic Chana Masala/Dal Fry, butter naan, salad and spicy Indian tea.</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 8: Sour Plum Soft Serve Ice Cream -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-icecream" checked onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_ice_lbl">Famous Sour Plum Soft-Serve</span>
+                                    <span>¥400</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_ice_desc">Delicious sweet-and-sour local plum juice ice cream at Lake Senba cafe.</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 9: Saza Shogun Shake -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-saza" onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_saza_lbl">Saza Coffee & Sweet Potato shake</span>
+                                    <span>¥900</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_saza_desc">Specialty shake made with local sweet potatoes and legendary castella sponge.</p>
+                            </div>
+                        </label>
+
+                        <!-- Item 10: Station Souvenirs & Postcards -->
+                        <label class="flex items-start gap-3 p-3 bg-white hover:bg-slate-50 border border-slate-150 rounded-xl cursor-pointer transition select-none">
+                            <input type="checkbox" id="item-souvenir" onchange="calculateBudget()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                            <div class="flex-1 text-xs">
+                                <div class="flex justify-between font-bold text-slate-950">
+                                    <span data-localize="item_souv_lbl">Mito Station Souvenirs & Crafts</span>
+                                    <span>¥1,000</span>
+                                </div>
+                                <p class="text-slate-500 mt-0.5 text-[10px]" data-localize="item_souv_desc">Local souvenirs like natto snacks, plum soaps, and traditional Ibaraki paper charms.</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Dynamic Live Receipt -->
+                    <div class="mt-4 p-5 bg-slate-950 text-white rounded-3xl shadow-xl space-y-4 relative overflow-hidden">
+                        <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-white/5 rounded-full"></div>
+                        <div class="flex items-center justify-between border-b border-dashed border-white/10 pb-3">
+                            <span class="text-[10px] uppercase font-bold tracking-widest text-slate-400" data-localize="rec_title">Estimated Live Receipt</span>
+                            <span class="text-xs font-semibold text-orange-400">1 JPY ≈ 0.59 INR</span>
+                        </div>
+
+                        <div class="space-y-2">
+                            <!-- Individual Total -->
+                            <div class="flex justify-between items-baseline">
+                                <span class="text-xs text-slate-400" data-localize="rec_per_person">Cost Per Student:</span>
+                                <div class="text-right">
+                                    <div class="text-xl font-black text-white" id="per-person-jpy">¥0</div>
+                                    <div class="text-xs font-semibold text-emerald-400" id="per-person-inr">₹0</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Group Grand Total -->
+                            <div class="flex justify-between items-baseline pt-2 border-t border-white/5">
+                                <span class="text-xs text-slate-400" data-localize="rec_group_total">Group Grand Total:</span>
+                                <div class="text-right">
+                                    <div class="text-2xl font-black text-orange-400" id="group-jpy">¥0</div>
+                                    <div class="text-sm font-bold text-emerald-400" id="group-inr">₹0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white/5 rounded-xl p-2.5 text-[10px] text-slate-300 leading-relaxed text-center">
+                            <i class="fa-solid fa-circle-check text-orange-400"></i> <span data-localize="rec_disclaimer">Ticket category toggles and boat split math applied dynamically!</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Sidebar Bottom Info Panel -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                <span>© 2026 Mito Youth Walking Tours</span>
+                <span class="text-indigo-600 font-semibold cursor-pointer" onclick="resetCalculator()"><i class="fa-solid fa-rotate-left"></i> Reset Defaults</span>
+            </div>
+
+        </section>
+
+        <!-- Right Side: Interactive Leaflet Map Area -->
+        <section class="flex-1 h-full relative">
+            <div id="map" class="w-full h-full z-0"></div>
+            
+            <!-- Floating Map Navigation Panel (Great UX for Zoom/Focus) -->
+            <div class="absolute bottom-5 right-5 z-10 flex flex-col gap-2">
+                <button onclick="zoomToFullRoute()" class="bg-white hover:bg-slate-100 text-slate-800 font-bold p-3 rounded-xl shadow-lg border border-slate-200 flex items-center gap-2 text-xs transition active:scale-95">
+                    <i class="fa-solid fa-expand text-indigo-600"></i>
+                    <span data-localize="map_full_view">Fit Entire Route</span>
+                </button>
+            </div>
+
+            <!-- Floating Step Indicator overlay -->
+            <div class="absolute top-5 left-5 z-10 bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-indigo-100 max-w-[280px] sm:max-w-xs transition-transform duration-300 transform" id="map-step-overlay">
+                <span class="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider" data-localize="active_stop_lbl">Active Location</span>
+                <h4 id="active-stop-title" class="text-base font-extrabold text-slate-900 mt-1">Mito Station</h4>
+                <p id="active-stop-detail" class="text-xs text-slate-600 mt-1 leading-normal font-medium">Starting spot! Meet the group near the historic Tokugawa statue at 10:00 AM.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Interactive Help Modal -->
+    <div id="help-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 transform scale-95 transition-all duration-300" id="modal-container">
+            <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+                <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-question text-indigo-500"></i>
+                    <span data-localize="modal_title">Mito Tour Help & Tips</span>
+                </h3>
+                <button onclick="closeHelpModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="mt-4 space-y-4 text-xs text-slate-600 leading-relaxed">
+                <p data-localize="modal_p1">Welcome to Mito City Centre! This interactive application is designed specifically to help student groups (and friends!) make the most of their visit within the 10:00 AM to 3:00 PM time budget.</p>
+                
+                <div class="space-y-1">
+                    <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-person-walking text-indigo-500"></i> Interactive Pace Slider
+                    </h4>
+                    <p data-localize="modal_pace_info">Adjust the speed slider on the sidebar. If you choose a faster or slower walking pace, the travel durations dynamically update to let you know exactly what is possible!</p>
+                </div>
+
+                <div class="space-y-1">
+                    <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-wallet text-orange-500"></i> Interactive Budget Planner
+                    </h4>
+                    <p data-localize="modal_budget_info">Navigate to the 'Budget Tool' tab to plan admission tickets, Swan pedal boat splits, authentic meals, and sweet-and-sour ice cream treats instantly converted in JPY and INR!</p>
+                </div>
+
+                <div class="space-y-1">
+                    <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-map-pin text-rose-500"></i> Smart Maps & Indian Connections
+                    </h4>
+                    <p data-localize="modal_map_info">Clicking on any card in the list refocuses the interactive map, highlights the walking pathway, and reveals customized local tips and historical parallels with famous landmarks in India.</p>
+                </div>
+
+                <div class="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-yellow-900">
+                    <strong class="block"><i class="fa-solid fa-triangle-exclamation"></i> Time-check:</strong>
+                    <span data-localize="modal_warn">The walking path totals about 6.6 km. Ensure your group sticks to the estimated stop timings so you reach Mito Station safely by 3:00 PM for optimal afternoon train connections and shopping!</span>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeHelpModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs shadow transition">
+                    Let's Go!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS Map Script -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // Language state
+        let currentLang = 'en';
+        let currentGroupSize = 3;
+        let ticketCategory = 'student'; // 'student' or 'adult'
+        const inrExchangeRate = 0.59; // 1 JPY = 0.59 INR in 2026
+
+        // Coordinates & data for Stops
+        const stopCoords = [
+            { id: 0, nameEN: "Mito Station (North Exit)", nameJP: "水戸駅 (北口)", lat: 36.3712, lng: 140.4764, descEN: "Gathering point by 10:00 AM. Excellent meeting spots near the large Mito Komon bronze statue.", descJP: "午前10:00集合。水戸黄門像付近など、グループでの集合に最適なスポットです。" },
+            { id: 1, nameEN: "Kodokan Han School", nameJP: "弘道館", lat: 36.3755, lng: 140.4782, descEN: "Historic academy of high-level Confucian & martial studies. Established in 1841.", descJP: "弘道館は、徳川斉昭公によって1841年に設立された日本最大規模の藩校です。" },
+            { id: 2, nameEN: "Keisei Department Store", nameJP: "水戸京成百貨店", lat: 36.3741, lng: 140.4608, descEN: "Modern premium shopping store. High-end dining floor with vegetarian friendly spots.", descJP: "洗練されたショッピングや名物レストランが揃う、水戸最大の百貨店です。" },
+            { id: 3, nameEN: "Kairakuen Garden", nameJP: "偕楽園", lat: 36.3739, lng: 140.4452, descEN: "One of Japan's Three Great Gardens. Features over 3,000 plum blossom trees.", descJP: "日本三名園の一つ。広大な園内には、約3,000本もの梅の木が植えられています。" },
+            { id: 4, nameEN: "Lake Senba & Park", nameJP: "千波湖・千波公園", lat: 36.3711, lng: 140.4571, descEN: "Beautiful calabash-shaped lake. Fun pedal boat rentals and swans await you.", descJP: "豊かな自然に囲まれた千波湖。スワンボートのレンタルやサイクリングが楽しめます。" },
+            { id: 5, nameEN: "Mito Station", nameJP: "水戸駅 (帰還)", lat: 36.3712, lng: 140.4764, descEN: "Arrive back safely before 3:00 PM to enjoy station shopping and local snacks.", descJP: "午後3:00までに安全に帰還。エクセルなどのショッピングビルでお土産探し！" }
+        ];
+
+        // Walking route paths computed sequentially (connecting coordinates)
+        const pathRoutes = [
+            [[36.3712, 140.4764], [36.3735, 140.4770], [36.3755, 140.4782]],
+            [[36.3755, 140.4782], [36.3748, 140.4735], [36.3736, 140.4680], [36.3741, 140.4608]],
+            [[36.3741, 140.4608], [36.3725, 140.4550], [36.3735, 140.4485], [36.3739, 140.4452]],
+            [[36.3739, 140.4452], [36.3698, 140.4485], [36.3711, 140.4571]],
+            [[36.3711, 140.4571], [36.3702, 140.4650], [36.3712, 140.4764]]
+        ];
+
+        // Distance in meters between stages
+        const baseDistances = [600, 1500, 1500, 1200, 1800]; // sum = 6.6km
+
+        // Localization Dictionary
+        const translations = {
+            en: {
+                main_title: "Explore Mito City Centre",
+                main_subtitle: "A vibrant self-guided walking course packed with deep samurai history, gorgeous parks, vegetarian eating guide, and shopping spots.",
+                welcome_badge: "🎓 Student Walking Itinerary",
+                pace_label: "Set Walking Pace:",
+                target_heading: "Strict Target: Back by 3:00 PM!",
+                tab_route: "Route Stops",
+                tab_veg: "Veg Eateries",
+                tab_shop: "Mito Shopping",
+                tab_budget: "Budget Tool",
+                active_stop_lbl: "Active Location",
+                map_full_view: "Fit Entire Route",
+                modal_title: "Mito Tour Help & Tips",
+                modal_p1: "Welcome to Mito City Centre! This interactive application is designed specifically to help student groups make the most of their visit within the 10:00 AM to 3:00 PM time budget.",
+                modal_pace_info: "Adjust the speed slider on the sidebar. If you choose a faster or slower walking pace, the travel durations dynamically update to let you know exactly what is possible!",
+                modal_budget_info: "Navigate to the 'Budget Tool' tab to plan admission tickets, Swan pedal boat splits, authentic meals, and sweet-and-sour ice cream treats instantly converted in JPY and INR!",
+                modal_map_info: "Clicking on any card in the list refocuses the interactive map, highlights the walking pathway, and reveals customized local tips and historical parallels with famous landmarks in India.",
+                modal_warn: "The walking path totals about 6.6 km. Ensure your group sticks to the estimated stop timings so you reach Mito Station safely by 3:00 PM for optimal afternoon train connections and shopping!",
+                veg_intro: "Here are great dining and coffee picks located close to Keisei Department Store that cater excellently to vegetarian preferences with custom options.",
+                shop_intro: "You have a giant 3-hour window (3:00 PM to 6:00 PM) inside and directly connected to Mito Station! Here's the best strategy to maximize shopping and snacks.",
+                
+                // Stops & Connections
+                in_connect_lbl: "India Connection:",
+                s0_name: "Mito Station (North Exit)",
+                s0_desc: "Gather here at 10:00 AM near the bronze statue of Mito Komon.",
+                s0_india: "Like a highly synchronized railway junction in India (such as <strong>New Delhi Station or Mumbai CSMT</strong>) but completely modernized and seamlessly integrated with cultural landmarks right outside the gates.",
+                s1_name: "Kodokan Han School",
+                s1_desc: "The largest samurai academy of the Edo period, established by Tokugawa Nariaki in 1841. Students mastered medicine, mathematics, martial arts, and Confucian philosophy.",
+                s1_tip: "Awesome backdrop for photos! Spot the old gate bullet holes from the 1868 Battle of Mito, showing real samurai military drama.",
+                s1_india: "Historically mirrors ancient Indian higher learning academies like <strong>Nalanda or Takshashila Gurukuls</strong>, where students resided under rigorous, holistic martial and philosophical guidance.",
+                s2_name: "Mito Keisei Department Store",
+                s2_desc: "Mito's premier modern luxury high-rise shopping hub. Perfect to enjoy air-conditioned window shopping, find top makeup, try modern cafes, and feast on the dining floor.",
+                s2_for_indian: "Pass through historic old Mito Castle ruins! Look at the juxtaposition of ancient black gates against the ultra-sleek Keisei Tower architecture. Great to analyze Japanese city design.",
+                s2_india: "Relates directly to India's high-end lifestyle complexes like <strong>Select Citywalk in Delhi or Phoenix Palladium in Mumbai</strong>. A fun twist: the 'Depachika' (basement food hall) has the hustle and sweet scents of a boutique Indian sweet bazar!",
+                s3_name: "Kairakuen Garden",
+                s3_desc: "Ranked as one of the 'Three Great Gardens of Japan' (Nihon Sanmeien). Opened in 1841. Features over 3,000 plum blossom trees, deep bamboo forests, and the three-story Kobuntei building with historical tea chambers.",
+                s3_tip: "Tokugawa Nariaki designed this specifically as a public park so everyone, from nobles to everyday citizens, could enjoy relaxation—similar to public park ethics globally!",
+                s3_india: "Compares to India's celebrated imperial royal landscapes, such as the <strong>Shalimar Bagh (Mughal Gardens) of Srinagar or Brindavan Gardens in Mysore</strong>, emphasizing symmetry, flowing water, and massive seasonal floral celebrations.",
+                s4_name: "Lake Senba & Park",
+                s4_desc: "A gorgeous calabash-shaped lake known as the oasis of Mito. Brimming with swans, ducks, and running paths.",
+                s4_india: "Evokes the youthful energy and outdoor spirit of <strong>Sukhna Lake in Chandigarh or Kankaria Lake in Ahmedabad</strong>, where families and student groups gather for pedal boat rides, crisp lakeside walks, and street food snacks.",
+                act_swan: "Swan Pedal Boats:",
+                price_swan: "¥1,500 (30 mins, fits up to 3 people - only ¥500 each!)",
+                act_row: "Hand-Rowed Boats:",
+                price_row: "¥700 (30 mins, fits 2 people - only ¥350 each!)",
+                act_bike: "Lakeside Cruiser Bicycle Rent:",
+                price_bike: "¥500 per person",
+                act_feed: "Feed Swans & Giant Koi:",
+                price_feed: "¥100 per bag of food feed",
+                s5_name: "Return: Mito Station",
+                s5_desc: "Arrive safely at the North/South entrance, completing the walking loop with perfect time left for post-3:00 PM shopping!",
+                s5_india: "Before catching trains, don't miss trying Mito's legendary Fermented Soybeans (Natto). Texturally, it bears an incredible cooking resemblance to regional Northeast Indian delicacies like **Akhuni of Nagaland or Hawaijar of Manipur**!",
+
+                // Food
+                veg1_desc: "A beloved, authentic Indian restaurant with English speaking staff. Highly reliable vegetarian curries (Chana Masala, Dal Fry, Mix Veg) and hot buttery naans. Standard spices feel just like home.",
+                veg1_tip: "Tip: Customize spice levels up to 5! Onion/Garlic-free options can be requested.",
+                veg2_desc: "The absolute legendary pride of Ibaraki's modern specialty coffee culture. Offers delicious rich matchas, oat milk replacements, and phenomenal sweet potato desserts which are naturally vegetarian!",
+                veg2_tip: "Menu Highlights: Castella sponge cakes, Ibaraki Sweet Potato Shake.",
+                veg3_desc: "Focuses on pesticide-free locally grown Ibaraki farm vegetables. They make gorgeous colorful lunch plates featuring local root crops, pesticide-free rice, and plant-derived miso soup.",
+                veg3_tip: "Vegan-friendly, no fish dashi options available upon request.",
+
+                // Shop
+                shop_excel_desc: "Massive modern multi-story shopping complexes built directly into the station. Perfect for youth fashion, cosmetics, stationery, and traditional souvenir stores.",
+                shop_excel_gift: "Head to 3F Excel Minami's food floors! Grab standard/creative Natto (fermented soybean) snacks, plum jelly, or Mito-themed sweet bean cakes.",
+                shop_excel_youth: "Check out popular stores like GU, MUJI, and Shimamura. Also excellent bookshops & fancy sticker-making purikura photo booths!",
+                shop_ume_title: "Plum / Ume Theme Specialties",
+                shop_ume_desc: "Mito is famous for premium plum cultivation. Pick up non-alcoholic sweet plum juices, tangy umeboshi snack chips, and incredible plum-scented bath goods.",
+
+                // Budget Simulator Tab Localizations
+                bud_head: "Mito Student Budget Simulator",
+                bud_intro: "Plan your trip expenses live! Select your age group, adjust the numbers, and pick customizable items. Prices auto-convert between JPY and INR.",
+                bud_grp_size: "Students in Group:",
+                bud_status: "Ticket Category:",
+                status_student: "Student Rate",
+                status_adult: "Adult Rate",
+                bud_activities_title: "Select Activities & Food:",
+                item_kod_lbl: "Kodokan Entrance Ticket",
+                item_kod_desc: "Edo Han school heritage tour. High discount for youth students.",
+                item_kai_lbl: "Kairakuen Garden Entrance",
+                item_kai_desc: "Legendary landscape. Garden gate pass.",
+                item_kob_lbl: "Kobuntei Historical Pavilion",
+                item_kob_desc: "Inside Kairakuen. Three stories of exquisite samurai sliding-door art.",
+                item_swan_lbl: "Swan Pedal Boat (30-min rental)",
+                item_swan_desc: "¥1,500 total per boat. Price divided automatically by group size!",
+                item_bike_lbl: "Lakeside Cruiser Bicycle Rent",
+                item_bike_desc: "Fun fast way to circle the full perimeter of gorgeous Lake Senba.",
+                item_feed_lbl: "Swan & Duck Food Feed",
+                item_feed_desc: "Small pellet feed bag. Highly popular for photos feeding large white swans.",
+                item_lunch_lbl: "Taj Mahal Veg Curry Meal",
+                item_lunch_desc: "Authentic Chana Masala/Dal Fry, butter naan, salad and spicy Indian tea.",
+                item_ice_lbl: "Famous Sour Plum Soft-Serve",
+                item_ice_desc: "Delicious sweet-and-sour local plum juice ice cream at Lake Senba cafe.",
+                item_saza_lbl: "Saza Coffee & Sweet Potato shake",
+                item_saza_desc: "Specialty shake made with local sweet potatoes and legendary castella sponge.",
+                item_souv_lbl: "Mito Station Souvenirs & Crafts",
+                item_souv_desc: "Local souvenirs like natto snacks, plum soaps, and traditional Ibaraki paper charms.",
+                rec_title: "Estimated Live Receipt",
+                rec_per_person: "Cost Per Student:",
+                rec_group_total: "Group Grand Total:",
+                rec_disclaimer: "Ticket category toggles and boat split math applied dynamically!"
+            },
+            jp: {
+                main_title: "水戸まちなか散策アプリ",
+                main_subtitle: "歴史ある弘道館から名勝偕楽園、お買い物、ベジタリアン対応グルメまで、水戸の魅力を丸ごと体験できる1日ウォーキングマップです。",
+                welcome_badge: "🎓 学生向けウォーキング行程",
+                pace_label: "歩行ペースの設定:",
+                target_heading: "必達目標: 午後3時までに帰還！",
+                tab_route: "ルート案内",
+                tab_veg: "ベジ対応グルメ",
+                tab_shop: "水戸駅ショッピング",
+                tab_budget: "予算シミュレータ",
+                active_stop_lbl: "現在選択中の地点",
+                map_full_view: "ルート全体を表示",
+                modal_title: "水戸散策ヘルプ＆ヒント",
+                modal_p1: "水戸市中心部へようこそ！このアプリは、午前10:00から午後3:00までの間に学生グループが安全かつ楽しく散策できるよう作成されています。",
+                modal_pace_info: "サイドバーの速度スライダーを動かして調整すると、歩行時間がリアルタイムに変化し、散策のスケジュールを管理できます。",
+                modal_budget_info: "「予算シミュレータ」タブをチェックして、入場券、スワンボート（人数での割り勘に対応！）、本場のカレー、美味しいソフトクリームなどの予算を日本円(¥)とインドルピー(₹)でスマートに試算してみましょう！",
+                modal_map_info: "カードをクリックすると、地図上でその場所が自動クローズアップされ、詳細情報やインドの名勝と対比した分かりやすいコラムが表示されます。",
+                modal_warn: "全体の徒歩移動距離は約6.6kmです。電車やお買い物に間に合うよう、スケジュール目安を守りながら午後3:00までに駅に戻るようにしましょう！",
+                veg_intro: "京成百貨店の近くにある、ベジタリアンに特におすすめの美味しいレストラン＆カフェ情報です。",
+                shop_intro: "午後3:00から6:00までは駅ビル（エクセル）でお買い物をお楽しみいただけます。人気のおすすめ土産＆ショッピングプランをご紹介。",
+                
+                // Stops & Connections
+                in_connect_lbl: "インドとのつながり:",
+                s0_name: "水戸駅 (北口)",
+                s0_desc: "午前10:00集合。北口の「水戸黄門御一行の銅像」のあたりが目印です。",
+                s0_india: "インドのニューデリー駅やムンバイCSMT駅のような、都市交通の要衝を思い起こさせます。大変清潔で、歴史的銅像が駅のシンボルとして迎えてくれます。",
+                s1_name: "弘道館",
+                s1_desc: "徳川斉昭によって天保12年（1841年）に創設された日本最大の藩校。文武両道の教育機関として機能していました。",
+                s1_tip: "フォトスポットとしてもおすすめ！1868年の水戸戦争で実際に着いたとされる正門の銃弾痕を間近で見ることができます。",
+                s1_india: "インドの古代総合大学「ナランダ遺跡」や「タキシラ」のように、歴史的教育の中心として、文系知識と実技（武術）の双方を極める修練の場であった共通点があります。",
+                s2_name: "水戸京成百貨店",
+                s2_desc: "水戸を代表する近代的デパート。ショッピングを楽しめる他、上のレストランフロアにはベジタリアンフレンドリーな店舗もあります。",
+                s2_for_indian: "弘道館からデパートへ向かう途中、水戸城跡の黒門などの歴史遺構を通過します。古い城跡の風情と都会の融合をお楽しみください。",
+                s2_india: "デリーの「セレクトシティウォーク」やムンバイの「フェニックスパラディウム」のような洗練された高級モールと重なります。デパ地下はデリのような賑やかさがあります！",
+                s3_name: "偕楽園",
+                s3_desc: "日本三名園（兼六園・後楽園・偕楽園）の一つ。1841年に開園。3,000本もの梅の木に加え、素晴らしい竹林や好文亭の建築美が有名です。",
+                s3_tip: "偕楽（みんなで一緒に楽しむこと）の理念に基づき、藩士や庶民が等しく憩う場として造られました。",
+                s3_india: "スリナガルの「シャリマール・バグ（ムガール庭園）」やマイソールの「ブリンダヴァン庭園」のように、時の君主が、水や四季折々の草花（偕楽園では梅、インドではバラや蓮など）を愛でるために造営した壮大な歴史庭園に匹敵します。",
+                s4_name: "千波湖・千波公園",
+                s4_desc: "ひょうたん型の美しい湖。白鳥や黒鳥が間近で見られる憩いのオアシスです。",
+                s4_india: "チャンディーガルの「スクナ湖」やアフマダーバードの「カンカリア湖」のように、多くの市民や若者がボート、ランニング、屋外での飲食を楽しむ水辺のアクティビティ空間にそっくりです。",
+                act_swan: "スワン足こぎボート:",
+                price_swan: "30分 1,500円 (3名乗りボート・3人で乗れば1人あたり僅か500円！)",
+                act_row: "手こぎボート:",
+                price_row: "30分 700円 (2名乗り・1人あたり350円)",
+                act_bike: "千波湖レンタサイクル:",
+                price_bike: "1人あたり 500円",
+                act_feed: "鳥やコイのエサやり:",
+                price_feed: "エサ1袋 100円",
+                s5_name: "帰還: 水戸駅",
+                s5_desc: "午後2:58頃到着。電車に乗るまでの余った時間でたっぷりお買い物が楽しめます。",
+                s5_india: "お帰り前に水戸名物「納豆（なっとう）」をお忘れなく！実はインド北東部ナガランドの伝統大豆発酵食品「アクニ（Akhuni）」やマニプールの「ハワイザル（Hawaijar）」と発酵プロセス・香りがそっくりなんです！",
+
+                // Food
+                veg1_desc: "フレンドリーな本格インドカレー店。チャナマサラやダルカレーなど、インド人留学生も大満足のハラール・ベジタリアンメニューが揃っています。",
+                veg1_tip: "ヒント：辛さは5段階から選択可。玉ねぎやニンニク抜きも柔軟に対応可能です。",
+                veg2_desc: "茨城を誇る最高峰のスペシャルティコーヒー。極上の抹茶ラテ、オーツ麦ミルク変更、和菓子のような絶品「ほしいもスイーツ」がいただけます。",
+                veg2_tip: "イチオシメニュー：カステラショート、将軍珈琲シェイク。",
+                veg3_desc: "茨城県産の無農薬野菜をたっぷり使ったオーガニックカフェ。新鮮な野菜プレートや、ダシに拘った精進スープが楽しめます。",
+                veg3_tip: "ヴィーガン・ベジタリアン対応（鰹だし不使用等の対応可、注文時に要確認）。",
+
+                // Shop
+                shop_excel_desc: "水戸駅直結の巨大な商業施設ビル。洋服、日本のコスメ、雑貨、文房具やお土産物が何でも揃います。",
+                shop_excel_gift: "エクセルみなみ3Fのお土産フロアへ行こう！美味しい「納豆スナック」や、おしゃれな梅シロップ、水戸ならではの和菓子を手に入れよう。",
+                shop_excel_youth: "人気のジーユー(GU)、無印良品、しまむらなどを散策。日本の書籍が揃う本屋や、記念のプリクラを撮れるコーナーもあります！",
+                shop_ume_title: "水戸名物・梅（ウメ）グッズ",
+                shop_ume_desc: "水戸にきたら「梅」は外せません。美味しい梅ジュース（ノンアルコール）、ピリ辛のカリカリ梅スナック、梅の香りの入浴剤などもお土産に大人気です。",
+
+                // Budget Simulator Tab Localizations
+                bud_head: "水戸 散策予算シミュレーター",
+                bud_intro: "散策の必要費用をリアルタイム計算！年齢や人数を選んで、ボート代の割り勘や美味しいご当地グルメのトータルコストをインドルピー(₹)同時変換で把握できます。",
+                bud_grp_size: "グループの人数 (学生数):",
+                bud_status: "料金区分:",
+                status_student: "学生料金",
+                status_adult: "一般料金",
+                bud_activities_title: "体験・お食事を選ぶ:",
+                item_kod_lbl: "弘道館 入館券",
+                item_kod_desc: "江戸時代の藩校跡。学生割引あり。",
+                item_kai_lbl: "偕楽園 入園券",
+                item_kai_desc: "名勝偕楽園の本園に入園する基本チケット。",
+                item_kob_lbl: "好文亭 入館券",
+                item_kob_desc: "偕楽園内にある木造建築。江戸当時の茶室や襖絵を観覧。",
+                item_swan_lbl: "スワンボート (30分レンタル)",
+                item_swan_desc: "1隻あたり1,500円。参加人数で自動的に割り勘計算されます！",
+                item_bike_lbl: "レンタサイクル (1回)",
+                item_bike_desc: "千波湖を風を感じてスムーズに周遊できるレンタル自転車。",
+                item_feed_lbl: "白鳥・黒鳥たちのエサ",
+                item_feed_desc: "千波湖の白鳥やカモ、巨大な鯉が寄ってくる楽しい餌やりパック。",
+                item_lunch_lbl: "Taj Mahal インドカレーランチ",
+                item_lunch_desc: "安心の本格ベジタブルカレー、焼きたてナン、サラダ、マサラチャイセット。",
+                item_ice_lbl: "水戸名物 うめソフトクリーム",
+                item_ice_desc: "甘酸っぱい茨城特産の梅肉ソースがかかった、千波湖畔の名物ひんやりスイーツ。",
+                item_saza_lbl: "サザコーヒー 将軍シェイク",
+                item_saza_desc: "茨城が誇る極上コーヒー店特製の、さつまいもや限定スイーツドリンク。",
+                item_souv_lbl: "水戸駅で買うお土産・小物品",
+                item_souv_desc: "納豆スナック、梅ジャム、茨城の千代紙クラフトなど、お買い物予算の目安。",
+                rec_title: "見積りのレシート明細",
+                rec_per_person: "学生1名あたりの予算:",
+                rec_group_total: "グループ全体の合計額:",
+                rec_disclaimer: "ボート代金のグループ割り勘計算や学生料金が自動適用されています！"
+            }
+        };
+
+        // Setup Leaflet Map
+        const map = L.map('map', {
+            zoomControl: false // Position zoom controls beautifully
+        }).setView([36.372, 140.465], 14);
+
+        // Add sleek beautiful CartoDB Voyager map tiles (light mode optimized for youth)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            maxZoom: 20
+        }).addTo(map);
+
+        // Add modern zoom controls top right
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        // Define colors for pathways
+        const colors = ["#8b5cf6", "#ec4899", "#10b981", "#0ea5e9", "#f59e0b"];
+
+        // Markers references
+        let activeMarkers = [];
+        let polylineRoutes = [];
+        let foodMarkers = [];
+
+        // Draw the walking routes sequentially on map
+        function drawRoutes() {
+            polylineRoutes.forEach(line => map.removeLayer(line));
+            polylineRoutes = [];
+
+            pathRoutes.forEach((route, index) => {
+                const polyline = L.polyline(route, {
+                    color: colors[index % colors.length],
+                    weight: 5,
+                    opacity: 0.85,
+                    dashArray: '1, 10',
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    className: 'route-active'
+                }).addTo(map);
+                
+                polylineRoutes.push(polyline);
+            });
+        }
+
+        // Add custom markers on the map
+        function placeMarkers() {
+            activeMarkers.forEach(m => map.removeLayer(m));
+            activeMarkers = [];
+
+            stopCoords.forEach((stop, index) => {
+                let iconHtml = '';
+                if (index === 0 || index === 5) {
+                    iconHtml = `<div class="w-9 h-9 bg-indigo-600 border-4 border-white rounded-full flex items-center justify-center text-white shadow-xl custom-marker-pulse"><i class="fa-solid fa-train text-xs"></i></div>`;
+                } else if (index === 1) {
+                    iconHtml = `<div class="w-9 h-9 bg-amber-600 border-4 border-white rounded-full flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-landmark text-xs"></i></div>`;
+                } else if (index === 2) {
+                    iconHtml = `<div class="w-9 h-9 bg-pink-500 border-4 border-white rounded-full flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-store text-xs"></i></div>`;
+                } else if (index === 3) {
+                    iconHtml = `<div class="w-9 h-9 bg-emerald-600 border-4 border-white rounded-full flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-tree text-xs"></i></div>`;
+                } else if (index === 4) {
+                    iconHtml = `<div class="w-9 h-9 bg-sky-500 border-4 border-white rounded-full flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-water text-xs"></i></div>`;
+                }
+
+                const customIcon = L.divIcon({
+                    html: iconHtml,
+                    className: 'custom-div-icon',
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18]
+                });
+
+                const marker = L.marker([stop.lat, stop.lng], { icon: customIcon }).addTo(map);
+                
+                const title = currentLang === 'en' ? stop.nameEN : stop.nameJP;
+                const desc = currentLang === 'en' ? stop.descEN : stop.descJP;
+
+                marker.bindPopup(`
+                    <div class="p-2 max-w-[200px]">
+                        <h4 class="font-bold text-slate-900 text-sm leading-tight">${title}</h4>
+                        <p class="text-xs text-slate-600 mt-1 leading-normal">${desc}</p>
+                    </div>
+                `);
+
+                marker.on('click', () => {
+                    focusStop(index);
+                });
+
+                activeMarkers.push(marker);
+            });
+        }
+
+        // Add Vegetarian restaurant markers (optional overlay)
+        function drawFoodMarkers() {
+            foodMarkers.forEach(m => map.removeLayer(m));
+            foodMarkers = [];
+
+            const foodData = [
+                { lat: 36.3745, lng: 140.4600, name: "Taj Mahal Indian Restaurant" },
+                { lat: 36.3741, lng: 140.4608, name: "Saza Coffee Keisei Branch" },
+                { lat: 36.3735, lng: 140.4615, name: "Organic Cafe Yosou" }
+            ];
+
+            foodData.forEach(item => {
+                const foodIcon = L.divIcon({
+                    html: `<div class="w-7 h-7 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-white shadow-lg"><i class="fa-solid fa-leaf text-[10px]"></i></div>`,
+                    className: 'custom-div-icon',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                const marker = L.marker([item.lat, item.lng], { icon: foodIcon }).addTo(map);
+                marker.bindPopup(`
+                    <div class="p-1">
+                        <strong class="text-xs text-green-800 flex items-center gap-1"><i class="fa-solid fa-leaf"></i> Veg Option</strong>
+                        <p class="text-[11px] text-slate-700 font-bold mt-0.5">${item.name}</p>
+                    </div>
+                `);
+                foodMarkers.push(marker);
+            });
+        }
+
+        // Focus map to a certain stop
+        function focusStop(id) {
+            const stop = stopCoords[id];
+            map.flyTo([stop.lat, stop.lng], 16, {
+                animate: true,
+                duration: 1.5
+            });
+
+            // Update UI Sidebar Overlay Card
+            const title = currentLang === 'en' ? stop.nameEN : stop.nameJP;
+            const desc = currentLang === 'en' ? stop.descEN : stop.descJP;
+
+            document.getElementById('active-stop-title').innerText = title;
+            document.getElementById('active-stop-detail').innerText = desc;
+
+            // Highlight the active list card visual style
+            const cards = ['card-kodokan', 'card-keisei', 'card-kairakuen', 'card-senba', 'card-return'];
+            cards.forEach(cardId => {
+                const card = document.getElementById(cardId);
+                if (card) {
+                    card.classList.remove('border-indigo-500', 'bg-indigo-50/20');
+                }
+            });
+
+            let activeCardId = '';
+            if (id === 1) activeCardId = 'card-kodokan';
+            if (id === 2) activeCardId = 'card-keisei';
+            if (id === 3) activeCardId = 'card-kairakuen';
+            if (id === 4) activeCardId = 'card-senba';
+            if (id === 5) activeCardId = 'card-return';
+
+            const activeCard = document.getElementById(activeCardId);
+            if (activeCard) {
+                activeCard.classList.add('border-indigo-500', 'bg-indigo-50/20');
+                activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            activeMarkers[id].openPopup();
+        }
+
+        function zoomToFullRoute() {
+            const bounds = L.latLngBounds(stopCoords.map(s => [s.lat, s.lng]));
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+
+        function highlightFoodMarker(lat, lng, name) {
+            map.flyTo([lat, lng], 17);
+            const popup = L.popup()
+                .setLatLng([lat, lng])
+                .setContent(`<div class="p-1 font-bold text-xs"><i class="fa-solid fa-leaf text-green-600 mr-1"></i> ${name}</div>`)
+                .openOn(map);
+        }
+
+        // Calculation of travel speeds based on User Input Pace
+        function updateWalkingPace(paceValue) {
+            const speed = parseFloat(paceValue); // in km/h
+            const speedMetersPerMin = (speed * 1000) / 60;
+
+            document.getElementById('pace-display').innerText = `${currentLang === 'en' ? 'Pace' : '歩行ペース'}: ${speed} km/h`;
+
+            baseDistances.forEach((distance, index) => {
+                const walkTimeMins = Math.round(distance / speedMetersPerMin);
+                
+                const distSpanId = `dist-s${index}-s${index+1}`;
+                const distText = currentLang === 'en' 
+                    ? `~${distance}m (Walk: ~${walkTimeMins} mins)`
+                    : `約${distance}m (徒歩 約${walkTimeMins}分)`;
+                
+                const targetSpan = document.getElementById(distSpanId);
+                if (targetSpan) targetSpan.innerText = distText;
+            });
+
+            if (speed < 4.0) {
+                document.getElementById('eta-summary').innerHTML = currentLang === 'en'
+                    ? "⚠️ Caution: Relaxed speed makes tight timing. Keep sightseeing brief to reach station before 3:00 PM!"
+                    : "⚠️ 注意: ゆっくり歩きの場合はお時間がタイトになります。見学をスムーズに行いましょう。";
+            } else {
+                document.getElementById('eta-summary').innerHTML = currentLang === 'en'
+                    ? "✅ Perfect! Your pacing easily hits all landmarks with ample buffer time for food and sightseeing!"
+                    : "✅ ばっちり！このペースなら、ランチやお買い物に十分な余裕を持って時間内に到着可能です！";
+            }
+        }
+
+        // Adjust the group size in simulator
+        function adjustGroupSize(amount) {
+            currentGroupSize += amount;
+            if (currentGroupSize < 1) currentGroupSize = 1;
+            if (currentGroupSize > 10) currentGroupSize = 10;
+            
+            document.getElementById('group-size-display').innerText = currentGroupSize;
+            
+            // Recompute individual share for shared boat
+            const perPersonBoatJpy = Math.round(1500 / currentGroupSize);
+            document.getElementById('price-lbl-swanboat').innerText = `¥${perPersonBoatJpy}`;
+
+            calculateBudget();
+        }
+
+        // Switch Status Student vs Adult
+        function setAgeStatus(status) {
+            ticketCategory = status;
+            
+            const btnStudent = document.getElementById('btn-status-student');
+            const btnAdult = document.getElementById('btn-status-adult');
+
+            if (status === 'student') {
+                btnStudent.className = "text-[11px] font-bold px-2.5 py-1 rounded bg-indigo-600 text-white transition";
+                btnAdult.className = "text-[11px] font-bold px-2.5 py-1 rounded text-slate-600 transition";
+                
+                // Update admission visual price tags
+                document.getElementById('price-lbl-kodokan').innerText = '¥200';
+                document.getElementById('price-lbl-kairakuen').innerText = '¥150';
+                document.getElementById('price-lbl-kobuntei').innerText = '¥100';
+            } else {
+                btnStudent.className = "text-[11px] font-bold px-2.5 py-1 rounded text-slate-600 transition";
+                btnAdult.className = "text-[11px] font-bold px-2.5 py-1 rounded bg-indigo-600 text-white transition";
+                
+                document.getElementById('price-lbl-kodokan').innerText = '¥400';
+                document.getElementById('price-lbl-kairakuen').innerText = '¥300';
+                document.getElementById('price-lbl-kobuntei').innerText = '¥200';
+            }
+
+            calculateBudget();
+        }
+
+        // Run entire live calculation math
+        function calculateBudget() {
+            let perPersonTotal = 0;
+
+            // Admission Costs based on status selection
+            if (document.getElementById('item-kodokan').checked) {
+                perPersonTotal += (ticketCategory === 'student' ? 200 : 400);
+            }
+            if (document.getElementById('item-kairakuen').checked) {
+                perPersonTotal += (ticketCategory === 'student' ? 150 : 300);
+            }
+            if (document.getElementById('item-kobuntei').checked) {
+                perPersonTotal += (ticketCategory === 'student' ? 100 : 200);
+            }
+
+            // Shared boat rental: ¥1,500 split among the passengers
+            if (document.getElementById('item-swanboat').checked) {
+                perPersonTotal += Math.round(1500 / currentGroupSize);
+            }
+
+            // Individual static costs
+            if (document.getElementById('item-bicycle').checked) perPersonTotal += 500;
+            if (document.getElementById('item-feed').checked) perPersonTotal += 100;
+            if (document.getElementById('item-lunch').checked) perPersonTotal += 1200;
+            if (document.getElementById('item-icecream').checked) perPersonTotal += 400;
+            if (document.getElementById('item-saza').checked) perPersonTotal += 900;
+            if (document.getElementById('item-souvenir').checked) perPersonTotal += 1000;
+
+            const groupTotal = perPersonTotal * currentGroupSize;
+
+            // Conversions to Indian Rupee (INR)
+            const perPersonInr = (perPersonTotal * inrExchangeRate).toFixed(0);
+            const groupInr = (groupTotal * inrExchangeRate).toFixed(0);
+
+            // Print values inside UI elements
+            document.getElementById('per-person-jpy').innerText = `¥${perPersonTotal.toLocaleString()}`;
+            document.getElementById('per-person-inr').innerText = `₹${parseInt(perPersonInr).toLocaleString()}`;
+            document.getElementById('group-jpy').innerText = `¥${groupTotal.toLocaleString()}`;
+            document.getElementById('group-inr').innerText = `₹${parseInt(groupInr).toLocaleString()}`;
+        }
+
+        // Switch Sidebar Tabs
+        function switchTab(tabName) {
+            document.getElementById('tab-itinerary').className = "flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition";
+            document.getElementById('tab-veggie').className = "flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition";
+            document.getElementById('tab-shopping').className = "flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition";
+            document.getElementById('tab-budget').className = "flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition";
+
+            document.getElementById('content-itinerary').classList.add('hidden');
+            document.getElementById('content-veggie').classList.add('hidden');
+            document.getElementById('content-shopping').classList.add('hidden');
+            document.getElementById('content-budget').classList.add('hidden');
+
+            if (tabName === 'itinerary') {
+                document.getElementById('tab-itinerary').className = "flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-indigo-600 text-indigo-600 transition";
+                document.getElementById('content-itinerary').classList.remove('hidden');
+            } else if (tabName === 'veggie') {
+                document.getElementById('tab-veggie').className = "flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-green-600 text-green-600 transition";
+                document.getElementById('content-veggie').classList.remove('hidden');
+            } else if (tabName === 'shopping') {
+                document.getElementById('tab-shopping').className = "flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-pink-600 text-pink-600 transition";
+                document.getElementById('content-shopping').classList.remove('hidden');
+            } else if (tabName === 'budget') {
+                document.getElementById('tab-budget').className = "flex-shrink-0 px-4 py-3 text-center text-xs font-bold border-b-2 border-orange-500 text-orange-500 transition";
+                document.getElementById('content-budget').classList.remove('hidden');
+            }
+        }
+
+        // Toggle language localization
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'jp' : 'en';
+            
+            document.getElementById('lang-label').innerText = currentLang === 'en' ? '日本語' : 'English';
+
+            const localizeElements = document.querySelectorAll('[data-localize]');
+            localizeElements.forEach(elem => {
+                const key = elem.getAttribute('data-localize');
+                if (translations[currentLang] && translations[currentLang][key]) {
+                    elem.innerHTML = translations[currentLang][key];
+                }
+            });
+
+            document.getElementById('main-title').innerText = currentLang === 'en' 
+                ? translations.en.main_title 
+                : translations.jp.main_title;
+            document.getElementById('main-subtitle').innerText = currentLang === 'en' 
+                ? translations.en.main_subtitle 
+                : translations.jp.main_subtitle;
+            document.getElementById('welcome-badge').innerText = currentLang === 'en' 
+                ? translations.en.welcome_badge 
+                : translations.jp.welcome_badge;
+
+            placeMarkers();
+            updateWalkingPace(document.getElementById('pace-slider').value);
+            calculateBudget();
+        }
+
+        // Reset Settings to Defaults
+        function resetCalculator() {
+            document.getElementById('pace-slider').value = 4.5;
+            currentGroupSize = 3;
+            document.getElementById('group-size-display').innerText = 3;
+            document.getElementById('price-lbl-swanboat').innerText = `¥500`;
+            setAgeStatus('student');
+
+            // Reset checkboxes
+            document.getElementById('item-kodokan').checked = true;
+            document.getElementById('item-kairakuen').checked = true;
+            document.getElementById('item-kobuntei').checked = false;
+            document.getElementById('item-swanboat').checked = true;
+            document.getElementById('item-bicycle').checked = false;
+            document.getElementById('item-feed').checked = true;
+            document.getElementById('item-lunch').checked = true;
+            document.getElementById('item-icecream').checked = true;
+            document.getElementById('item-saza').checked = false;
+            document.getElementById('item-souvenir').checked = false;
+
+            updateWalkingPace(4.5);
+            switchTab('itinerary');
+            zoomToFullRoute();
+            calculateBudget();
+        }
+
+        // Help Modal Controls
+        function openHelpModal() {
+            const modal = document.getElementById('help-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('modal-container').classList.remove('scale-95');
+                document.getElementById('modal-container').classList.add('scale-100');
+            }, 50);
+        }
+
+        function closeHelpModal() {
+            const modal = document.getElementById('help-modal');
+            document.getElementById('modal-container').classList.add('scale-95');
+            document.getElementById('modal-container').classList.remove('scale-100');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 150);
+        }
+
+        // Window Loading Sequence
+        window.onload = function () {
+            drawRoutes();
+            placeMarkers();
+            drawFoodMarkers();
+            zoomToFullRoute();
+            updateWalkingPace(4.5);
+            calculateBudget();
+        };
+    </script>
+</body>
+</html>
